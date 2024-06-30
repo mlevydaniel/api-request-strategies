@@ -1,0 +1,12 @@
+__pycache__/
+.DS_Store
+.idea/
+logs/
+data/gcp_credentials.json
+.vscode
+.ipynb_checkpoints
+docker-compose.yaml
+Dockerfile.2_2_5
+backup/
+.env
+venv/
