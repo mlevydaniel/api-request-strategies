@@ -15,23 +15,21 @@ logging.basicConfig(
 # Load API credentials from environment variables
 api_key = os.getenv("BITSO_API_KEY")
 api_secret = os.getenv("BITSO_API_SECRET")
-book="btc_mxn"
 GCS_BUCKET_NAME = 'bitsode'
 
 # Request details
 base_url = "https://stage.bitso.com/api/v3/order_book"
-params = {
-    "book": book
-}
 http_method = "GET"
 STORE_IN_GCS = True
 
 # Initialize GCS client
 gcs_client = storage.Client()
 
+# List of exchange rates to process
+exchange_rates = ["btc_mxn", "eth_mxn", "xrp_mxn"]
 
-if __name__ == "__main__":
-
+def process_exchange_rate(book):
+    params = {"book": book}
     data_list = []
 
     # Get minute when the script started
@@ -75,3 +73,13 @@ if __name__ == "__main__":
 
         # Wait until next second
         time.sleep(1 - datetime.now(timezone.utc).microsecond / 1_000_000)
+
+if __name__ == "__main__":
+    threads = []
+    for book in exchange_rates:
+        thread = Thread(target=process_exchange_rate, args=(book,))
+        thread.start()
+        threads.append(thread)
+
+    for thread in threads:
+        thread.join()
