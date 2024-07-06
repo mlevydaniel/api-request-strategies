@@ -13,6 +13,13 @@ logging.basicConfig(
 
 
 def save_to_csv_batch(data_list, filename):
+    '''
+    Save data to a CSV file
+
+    Args:
+    data_list (list): List with the data to be saved
+    filename (str): Name of the file where the data will be saved
+    '''
     with open(filename, "w", newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
         for data in data_list:
@@ -21,6 +28,13 @@ def save_to_csv_batch(data_list, filename):
 
 
 def save_to_csv_stream(data_tuple, filename):
+    ''''
+    Save data to a CSV file
+
+    Args:
+    data_tuple (tuple): Tuple with the data to be saved
+    filename (str): Name of the file where the data will be saved
+    '''
     with open(filename, "a", newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(data_tuple)
@@ -28,6 +42,13 @@ def save_to_csv_stream(data_tuple, filename):
 
 
 def store_data_to_gcs(gcs_bucket_name, filename):
+    '''
+    Store a file in Google Cloud Storage
+
+    Args:
+    gcs_bucket_name (str): Name of the GCS bucket
+    filename (str): Name of the file to be stored in GCS
+    '''
     year, month, day, hour = map(int, filename.split("_")[2].split("-")[0:4])
     gcs_key = f"{year}/{month}/{day}/{hour}/{filename}"
 
