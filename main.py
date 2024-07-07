@@ -71,7 +71,7 @@ if __name__ == "__main__":
             else:
                 store_data_locally(filename)
 
-            # update the start and interval minute and reset the data list
+            # update start and interval minute
             start_minute = current_minute
             interval_minute = round_down_minute(now)
 
