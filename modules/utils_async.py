@@ -2,10 +2,9 @@ import logging
 import csv
 import os
 import shutil
-import aiofiles
 from google.cloud import storage
 import asyncio
-from functools import partial
+import aiofiles
 
 gcs_client = storage.Client()
 
@@ -15,79 +14,49 @@ logging.basicConfig(
 )
 
 async def save_to_csv_batch_async(data_list, filename):
-    '''
-    Save data to a CSV file
-
-    Args:
-    data_list (list): List with the data to be saved
-    filename (str): Name of the file where the data will be saved
-    '''
-    loop = asyncio.get_running_loop()
-    write_csv = partial(_write_csv, data_list, filename)
-    await loop.run_in_executor(None, write_csv)
-    logging.info(f"Data saved to {filename}")
-
-def _write_csv(data_list, filename):
-    with open(filename, mode='w', newline='') as csvfile:
+    """
+    Save data to a CSV file asynchronously
+    """
+    async with aiofiles.open(filename, mode='w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerows(data_list)
-
+        for row in data_list:
+            await csvfile.write(','.join(map(str, row)) + '\n')
+    logging.info(f"Data saved to {filename}")
 
 async def save_to_csv_stream_async(data_tuple, filename):
-    '''
-    Save data to a CSV file
-
-    Args:
-    data_tuple (tuple): Tuple with the data to be saved
-    filename (str): Name of the file where the data will be saved
-    '''
-    loop = asyncio.get_running_loop()
-    write_csv = partial(_write_row, data_tuple, filename)
-    await loop.run_in_executor(None, write_csv)
-    logging.info(f"Data saved to {filename}")
-
-def _write_row(data_tuple, filename):
-    with open(filename, mode='a', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(data_tuple)
-
+    """
+    Append data to a CSV file asynchronously
+    """
+    async with aiofiles.open(filename, mode='a', newline='') as csvfile:
+        await csvfile.write(','.join(map(str, data_tuple)) + '\n')
+    logging.info(f"Data appended to {filename}")
 
 async def store_data_to_gcs_async(gcs_bucket_name, filename):
-    '''
-    Store a file in Google Cloud Storage
-
-    Args:
-    gcs_bucket_name (str): Name of the GCS bucket
-    filename (str): Name of the file to be stored in GCS
-    '''
+    """
+    Store a file in Google Cloud Storage asynchronously
+    """
     year, month, day, hour = map(int, filename.split("_")[2].split("-")[0:4])
     gcs_key = f"{year}/{month}/{day}/{hour}/{filename}"
-
     bucket = gcs_client.bucket(gcs_bucket_name)
     blob = bucket.blob(gcs_key)
 
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, blob.upload_from_filename, filename)
+    await asyncio.to_thread(blob.upload_from_filename, filename)
     logging.info(f"File {filename} uploaded successfully to {gcs_key}")
 
     # Remove the file after uploading
-    os.remove(filename)
-
+    await asyncio.to_thread(os.remove, filename)
 
 async def store_data_locally_async(filename):
-    # Extract year, month, day, and hour from the filename
+    """
+    Store data locally asynchronously
+    """
     year, month, day, hour = filename.split("_")[2].split("-")[0:4]
-
-    # Create local directory structure
     local_dir = os.path.join("data", year, month, day, hour)
-    os.makedirs(local_dir, exist_ok=True)
+    await asyncio.to_thread(os.makedirs, local_dir, exist_ok=True)
 
-    # Move the file to the local directory
     local_filepath = os.path.join(local_dir, os.path.basename(filename))
-    shutil.move(filename, local_filepath)
-
+    await asyncio.to_thread(shutil.move, filename, local_filepath)
     logging.info(f"File {local_filepath} stored locally")
-
 
 if __name__ == "__main__":
     # Sample data
@@ -95,15 +64,15 @@ if __name__ == "__main__":
         ('2023-06-30T10:00:00Z', 'btc_mxn', 600000, 605000, 0.83),
         ('2023-06-30T10:01:00Z', 'btc_mxn', 601000, 606000, 0.82)
     ]
-
     data_tuple = ('2023-06-30T10:02:00Z', 'btc_mxn', 601000, 607000, 0.85)
-
     filename = "btc_mxn_2023-06-30-10-00-00.csv"
 
-    asyncio.run(save_to_csv_batch_async(data_list, filename))
+    async def run_tests():
+        await save_to_csv_batch_async(data_list, filename)
+        await save_to_csv_stream_async(data_tuple, filename)
 
-    asyncio.run(save_to_csv_stream_async(data_tuple, filename))
+        # Store data in GCS
+        gcs_bucket_name = 'bitsode'
+        await store_data_to_gcs_async(gcs_bucket_name, filename)
 
-    # Store data in GCS
-    gcs_bucket_name = 'bitsode'
-    asyncio.run(store_data_to_gcs_async(gcs_bucket_name, filename))
+    asyncio.run(run_tests())
