@@ -55,23 +55,24 @@ GCP_CREDENTIALS=your_gcp_service_account_json
 
 The code is divided in three different versions. The first one called main.py runs the script pulling only one book per second
 
-```
+```sh
 python3 main.py
 ```
 
 Pulls data of one coin at a time, stores it locally and then upload it to GCS partitioned by date and hour
 
-```
+```sh
 python3 main_multithreading.py
 ```
 
 The main_multiple_books.py pulls data for multiple coins simultaneously. However, because the API let you pull up to 60 times per minute, it may raise and error due to limits
 
-```
+```sh
 python3 main_async.py
+```
 
 The main_async.py pulls data for multiple coins simultaneously using asyncio. However, because the API let you pull up to 60 times per minute, it may raise and error due to limits
-```
+
 
 ## Partitioning
 
