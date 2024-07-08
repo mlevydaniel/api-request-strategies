@@ -15,18 +15,18 @@ from modules.utils_async import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Load API credentials from environment variables
-api_key = os.getenv("BITSO_API_KEY")
-api_secret = os.getenv("BITSO_API_SECRET")
-# books = ["btc_mxn", "ltc_mxn", "xrp_mxn"]  # List of book parameters
-books = ['btc_mxn', 'ltc_mxn']
-
 # Constants
 GCS_BUCKET_NAME = "bitsode"
 BASE_URL = "https://stage.bitso.com/api/v3/order_book"
 HTTP_METHOD = "GET"
 STORE_IN_GCS = True
 MINUTE_MULTIPLE = 2
+
+# Load API credentials from environment variables
+api_key = os.getenv("BITSO_API_KEY")
+api_secret = os.getenv("BITSO_API_SECRET")
+# books = ["btc_mxn", "ltc_mxn", "xrp_mxn"]  # List of book parameters
+books = ['btc_mxn', 'ltc_mxn']
 
 # Initialize GCS client
 gcs_client = storage.Client()
@@ -59,7 +59,7 @@ async def process_book(book, api_key, api_secret, session, current_interval):
         return book, None
 
 
-async def store_files(files_to_store):
+async def store_data(files_to_store):
     store_tasks = []
     for book, filename in files_to_store:
         if filename:
@@ -84,7 +84,7 @@ async def main():
             results = await asyncio.gather(*tasks)
 
             if now > next_interval:
-                await store_files(results)
+                await store_data(results)
                 current_interval = round_down_minute(now)
                 next_interval = current_interval + timedelta(minutes=MINUTE_MULTIPLE)
 
