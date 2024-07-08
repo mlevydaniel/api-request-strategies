@@ -9,97 +9,85 @@ import logging
 from datetime import datetime, timezone
 from google.cloud import storage
 
+# Constants
+BASE_URL = "https://stage.bitso.com/api/v3/order_book"
+DEFAULT_BOOK = "btc_mxn"
+
+
+# Logging setup
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# Load environment variables from .env file
+
+# Load environment variables
 load_dotenv()
 
 
-# Function to generate the signature
 def generate_signature(api_secret, nonce, http_method, request_path, json_payload):
     data = f"{nonce}{http_method}{request_path}{json_payload}"
-    signature = hmac.new(api_secret.encode('utf-8'), data.encode('utf-8'), hashlib.sha256).hexdigest()
-    return signature
+    return hmac.new(api_secret.encode('utf-8'), data.encode('utf-8'), hashlib.sha256).hexdigest()
 
 
-# Function to make a signed request to Bitso API
+def build_auth_header(api_key, api_secret, http_method, request_path, json_payload):
+    nonce = str(int(time.time() * 1000))
+    signature = generate_signature(api_secret, nonce, http_method, request_path, json_payload)
+    return f"Bitso {api_key}:{nonce}:{signature}"
+
+
 def make_request(api_key, api_secret, http_method, base_url, params):
     url = f"{base_url}?{urlencode(params)}"
     request_path = f"{urlparse(base_url).path}?{urlencode(params)}"
     json_payload = ""
 
-    # Generate nonce
-    nonce = str(int(time.time() * 1000))
+    auth_header = build_auth_header(api_key, api_secret, http_method, request_path, json_payload)
 
-    # Generate signature
-    signature = generate_signature(api_secret, nonce, http_method, request_path, json_payload)
-
-    # Build the authorization header
-    auth_header = f"Bitso {api_key}:{nonce}:{signature}"
-
-    # Make the request
     headers = {
         'Authorization': auth_header,
         'Content-Type': 'application/json'
     }
 
     if http_method == "GET":
-        response = requests.get(url, headers=headers)
+        return requests.get(url, headers=headers)
     elif http_method == "POST":
-        response = requests.post(url, headers=headers, data=json_payload)
+        return requests.post(url, headers=headers, data=json_payload)
     else:
         raise ValueError("Unsupported HTTP method")
 
-    return response
 
-
-def make_request_and_process(api_key, api_secret, http_method, base_url, params):
-
-    '''
-    Function to make a signed request to Bitso API and process the response
-
-    Parameters:
-    api_key (str): Bitso API key
-    api_secret (str): Bitso API secret
-    http_method (str): HTTP method (GET or POST)
-    base_url (str): Base URL for the request
-    params (dict): Request parameters
-    '''
-
-    orderbook_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%z")
-    response = make_request(api_key, api_secret, http_method, base_url, params)
-
-    # logging.info("Status Code:", response.status_code)
-    response = response.json().get('payload')
-
-    best_bid = float(response.get('bids')[0]['price'])
-    best_ask = float(response.get('asks')[0]['price'])
+def process_response(response, book):
+    payload = response.json().get('payload')
+    best_bid = float(payload['bids'][0]['price'])
+    best_ask = float(payload['asks'][0]['price'])
     spread = float(format((best_bid/best_ask) * 100 / best_ask, '.4f'))
 
-    data_tuple = (orderbook_timestamp, params['book'], best_bid, best_ask, spread)
+    orderbook_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%z")
+    return (orderbook_timestamp, book, best_bid, best_ask, spread)
+
+
+def make_request_and_process(api_key, api_secret, book=DEFAULT_BOOK):
+    params = {"book": book}
+    response = make_request(api_key, api_secret, "GET", BASE_URL, params)
+
+    if response.status_code != 200:
+        logging.error(f"Request failed with status code: {response.status_code}")
+        return None
+
+    data_tuple = process_response(response, book)
     logging.info(f"Bid-Ask spread: {data_tuple}")
     return data_tuple
 
 
 if __name__ == "__main__":
-    # Load API credentials from environment variables
     api_key = os.getenv("BITSO_API_KEY")
     api_secret = os.getenv("BITSO_API_SECRET")
 
-    # Initialize GCS client
+    if not api_key or not api_secret:
+        logging.error("API credentials not found in environment variables")
+
     gcs_client = storage.Client()
 
-    # Request details
-    base_url = "https://stage.bitso.com/api/v3/order_book"
-    params = {
-        "book": "btc_mxn"
-    }
-    http_method = "GET"
-
-    # Make the request and print the response
-    response = make_request(api_key, api_secret, http_method, base_url, params)
-    print("Status Code:", response.status_code)
-    print("Response Body:", response.json())
+    result = make_request_and_process(api_key, api_secret)
+    if result:
+        print("Processed Data:", result)

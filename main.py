@@ -32,18 +32,6 @@ def round_down_minute(current_time):
     return current_time.replace(minute=minutes, second=0, microsecond=0)
 
 
-def process_data(book, api_key, api_secret):
-    """Process data for a single iteration"""
-    params = {"book": book}
-    data_tuple = make_request_and_process(api_key, api_secret, HTTP_METHOD, BASE_URL, params)
-
-    if not data_tuple:
-        logger.error(f"Error fetching data for {book}")
-        return None
-
-    return data_tuple
-
-
 def store_data(filename):
     """Store data either in GCS or locally"""
     if STORE_IN_GCS:
@@ -61,7 +49,7 @@ def main_loop(book, api_key, api_secret):
     while True:
         now = datetime.now(timezone.utc)
 
-        data_tuple = process_data(book, api_key, api_secret)
+        data_tuple = make_request_and_process(api_key, api_secret, book)
 
         if not data_tuple:
             time.sleep(1 - datetime.now(timezone.utc).microsecond / 1_000_000)
