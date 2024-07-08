@@ -2,7 +2,7 @@ import os
 import logging
 import asyncio
 import aiohttp
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from google.cloud import storage
 from modules.api_request_async import make_request_and_process
 from modules.utils_async import (
@@ -11,25 +11,26 @@ from modules.utils_async import (
     store_data_locally_async
 )
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 # Load API credentials from environment variables
 api_key = os.getenv("BITSO_API_KEY")
 api_secret = os.getenv("BITSO_API_SECRET")
 # books = ["btc_mxn", "ltc_mxn", "xrp_mxn"]  # List of book parameters
 books = ['btc_mxn']
-GCS_BUCKET_NAME = "bitsode"
 
-# Request details
-base_url = "https://stage.bitso.com/api/v3/order_book"
-http_method = "GET"
+# Constants
+GCS_BUCKET_NAME = "bitsode"
+BASE_URL = "https://stage.bitso.com/api/v3/order_book"
+HTTP_METHOD = "GET"
 STORE_IN_GCS = True
 MINUTE_MULTIPLE = 2
 
 # Initialize GCS client
 gcs_client = storage.Client()
+
 
 def round_down_minute(current_time):
     """
@@ -39,15 +40,15 @@ def round_down_minute(current_time):
     return current_time.replace(minute=minutes % 60, second=0, microsecond=0)
 
 
-async def process_book(book, api_key, api_secret, http_method, base_url, session, interval_minute):
+async def process_book(book, api_key, api_secret, HTTP_METHOD, BASE_URL, session, current_interval):
     params = {"book": book}
     logging.info(f"Processing book: {book} with params: {params}")
 
     try:
-        data_tuple = await make_request_and_process(api_key, api_secret, http_method, base_url, params, session)
+        data_tuple = await make_request_and_process(api_key, api_secret, HTTP_METHOD, BASE_URL, params, session)
 
         if data_tuple:
-            filename = f"{book}_{interval_minute.strftime('%Y-%m-%d-%H-%M-%S')}.csv"
+            filename = f"{book}_{current_interval.strftime('%Y-%m-%d-%H-%M-%S')}.csv"
             await save_to_csv_stream_async(data_tuple, filename)
             return book, filename
         else:
@@ -72,21 +73,20 @@ async def store_files(files_to_store):
 
 
 async def main():
-    start_minute = datetime.now(timezone.utc).minute
-    interval_minute = round_down_minute(datetime.now(timezone.utc))
+    current_interval = round_down_minute(datetime.now(timezone.utc))
+    next_interval = current_interval + timedelta(minutes=MINUTE_MULTIPLE)
 
     async with aiohttp.ClientSession() as session:
         while True:
             now = datetime.now(timezone.utc)
-            current_minute = now.minute
 
-            tasks = [process_book(book, api_key, api_secret, http_method, base_url, session, interval_minute) for book in books]
+            tasks = [process_book(book, api_key, api_secret, HTTP_METHOD, BASE_URL, session, current_interval) for book in books]
             results = await asyncio.gather(*tasks)
 
-            if current_minute % MINUTE_MULTIPLE == 0 and current_minute != start_minute:
+            if now > next_interval:
                 await store_files(results)
-                start_minute = current_minute
-                interval_minute = round_down_minute(now)
+                current_interval = round_down_minute(now)
+                next_interval = current_interval + timedelta(minutes=MINUTE_MULTIPLE)
 
             await asyncio.sleep(1 - datetime.now(timezone.utc).microsecond / 1_000_000)
 

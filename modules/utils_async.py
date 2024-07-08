@@ -5,6 +5,8 @@ import shutil
 from google.cloud import storage
 import asyncio
 import aiofiles
+from google.api_core import retry
+
 
 gcs_client = storage.Client()
 
@@ -31,20 +33,27 @@ async def save_to_csv_stream_async(data_tuple, filename):
         await csvfile.write(','.join(map(str, data_tuple)) + '\n')
     logging.info(f"Data appended to {filename}")
 
+@retry.Retry(predicate=retry.if_exception_type(Exception))
 async def store_data_to_gcs_async(gcs_bucket_name, filename):
     """
     Store a file in Google Cloud Storage asynchronously
     """
-    year, month, day, hour = map(int, filename.split("_")[2].split("-")[0:4])
-    gcs_key = f"{year}/{month}/{day}/{hour}/{filename}"
-    bucket = gcs_client.bucket(gcs_bucket_name)
-    blob = bucket.blob(gcs_key)
+    try:
+        year, month, day, hour = map(int, filename.split("_")[2].split("-")[0:4])
+        gcs_key = f"{year}/{month}/{day}/{hour}/{filename}"
+        bucket = gcs_client.bucket(gcs_bucket_name)
+        blob = bucket.blob(gcs_key)
 
-    await asyncio.to_thread(blob.upload_from_filename, filename)
-    logging.info(f"File {filename} uploaded successfully to {gcs_key}")
+        await asyncio.to_thread(blob.upload_from_filename, filename)
+        logging.info(f"File {filename} uploaded successfully to {gcs_key}")
 
-    # Remove the file after uploading
-    await asyncio.to_thread(os.remove, filename)
+        # Remove the file after uploading
+        await asyncio.to_thread(os.remove, filename)
+
+    except Exception as e:
+        logging.error(f"Error uploading {filename} to GCS: {e}")
+        raise
+
 
 async def store_data_locally_async(filename):
     """
