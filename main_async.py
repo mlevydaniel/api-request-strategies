@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 api_key = os.getenv("BITSO_API_KEY")
 api_secret = os.getenv("BITSO_API_SECRET")
 # books = ["btc_mxn", "ltc_mxn", "xrp_mxn"]  # List of book parameters
-books = ['btc_mxn']
+books = ['btc_mxn', 'ltc_mxn']
 
 # Constants
 GCS_BUCKET_NAME = "bitsode"
@@ -40,12 +40,12 @@ def round_down_minute(current_time):
     return current_time.replace(minute=minutes % 60, second=0, microsecond=0)
 
 
-async def process_book(book, api_key, api_secret, HTTP_METHOD, BASE_URL, session, current_interval):
+async def process_book(book, api_key, api_secret, session, current_interval):
     params = {"book": book}
     logging.info(f"Processing book: {book} with params: {params}")
 
     try:
-        data_tuple = await make_request_and_process(api_key, api_secret, HTTP_METHOD, BASE_URL, params, session)
+        data_tuple = await make_request_and_process(api_key, api_secret, params, session)
 
         if data_tuple:
             filename = f"{book}_{current_interval.strftime('%Y-%m-%d-%H-%M-%S')}.csv"
@@ -80,7 +80,7 @@ async def main():
         while True:
             now = datetime.now(timezone.utc)
 
-            tasks = [process_book(book, api_key, api_secret, HTTP_METHOD, BASE_URL, session, current_interval) for book in books]
+            tasks = [process_book(book, api_key, api_secret, session, current_interval) for book in books]
             results = await asyncio.gather(*tasks)
 
             if now > next_interval:
