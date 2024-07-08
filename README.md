@@ -42,9 +42,9 @@ GCP_CREDENTIALS=your_gcp_service_account_json
 .
 ├── data/ # Directory where data is stored
 ├── modules/ # Directory containing scripts
-│── main.py # Script for pulling one book per second
-│── main_threading.py # Script using threading to handle latency
-│── main_multiple_books.py # Script for pulling data for multiple books simultaneously
+│── main.py # Script for pulling one coin per second
+│── main_multithreading.py # Script using multithreading to pull data for multiple coins simultaneously
+│── main_async.py # Script for pulling data for multiple coins simultaneously using asyncio
 ├── requirements.txt # List of dependencies
 └── README.md # Project documentation
 ```
@@ -59,16 +59,18 @@ The code is divided in three different versions. The first one called main.py ru
 python3 main.py
 ```
 
-Because there could be some latency issues, there is another version called main_threading.py that runs the same but using threadings to improve the data extraction. This one is more robust to latency issues
+Pulls data of one coin at a time, stores it locally and then upload it to GCS partitioned by date and hour
 
 ```
-python3 main_threading.py
+python3 main_multithreading.py
 ```
 
-And finally, the main_multiple_books.py pulls data for multiple books simultaneously. However, because the API let you pull up to 60 times per minute, it may raise and error due to limits
+The main_multiple_books.py pulls data for multiple coins simultaneously. However, because the API let you pull up to 60 times per minute, it may raise and error due to limits
 
 ```
-python3 main_multiple_books.py
+python3 main_async.py
+
+The main_async.py pulls data for multiple coins simultaneously using asyncio. However, because the API let you pull up to 60 times per minute, it may raise and error due to limits
 ```
 
 ## Partitioning
